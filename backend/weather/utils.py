@@ -1,76 +1,89 @@
 import requests
 from bs4 import BeautifulSoup
 import logging
+from decouple import config
 
 logger = logging.getLogger(__name__)
 
 def get_weather_forecast(location: str):
     """
-    Scrape weather forecast data from National Weather Service
-    
-    Returns:
-        dict: Dictionary containing weather data or error message
+    Given a location string, geocode it and fetch weather forecast from NWS
     """
-    url = "https://forecast.weather.gov/MapClick.php?x=210&y=159&site=boi&zmx=&zmy=&map_x=210&map_y=159"
-    
     try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()  # Raise exception for 4XX/5XX responses
-        
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Get location
-        location_elem = soup.find('h2', class_='panel-title')
-        location = location_elem.text.strip() if location_elem else "Location Unavailable"
-        
-        # Get current conditions
-        conditions = {}
-        current_conditions = soup.find(id='current_conditions-summary')
-        if current_conditions:
-            temp_elem = current_conditions.find(class_='myforecast-current-lrg')
-            conditions['temperature'] = temp_elem.text if temp_elem else "N/A"
-            
-            condition_elem = current_conditions.find(class_='myforecast-current')
-            conditions['condition'] = condition_elem.text if condition_elem else "N/A"
-        
-        # Get detailed conditions
-        detailed = {}
-        detail_items = soup.find_all(class_='col-sm-2 forecast-label')
-        for item in detail_items:
-            label = item.text.strip().rstrip(':')
-            value = item.find_next_sibling(class_='col-sm-10 forecast-value')
-            if value:
-                detailed[label] = value.text.strip()
-        
-        # Get forecast
+        headers = {
+            "User-Agent": config("GEOCODING_USER_AGENT")
+        }
+        # Use OpenStreetMap Nominatim API for geocoding
+        geo_resp = requests.get(f"https://nominatim.openstreetmap.org/search",
+                                params={"q": location, "format": "json"},
+                                headers=headers,
+                                timeout=10)
+        geo_resp.raise_for_status()
+        geo_data = geo_resp.json()
+
+        if not geo_data:
+            return {"success": False, "error": "Location not found."}
+
+        lat = geo_data[0]['lat']
+        lon = geo_data[0]['lon']
+
+        # Use NWS API to get the forecast URL
+        points_url = f"https://api.weather.gov/points/{lat},{lon}"
+        points_resp = requests.get(points_url, timeout=10)
+        points_resp.raise_for_status()
+        forecast_page_url = points_resp.json()['properties']['forecast']
+
+        # Debug
+        print("Scraping URL:", forecast_page_url)
+
+        forecast_resp = requests.get(forecast_page_url, timeout=10)
+        forecast_resp.raise_for_status()
+        forecast_data = forecast_resp.json()
+
+        # Get grid data for detailed conditions
+        grid_url = points_resp.json()['properties']['forecastGridData']
+        grid_resp = requests.get(grid_url, timeout=10)
+        grid_resp.raise_for_status()
+        grid_data = grid_resp.json()
+
+        temp_c = grid_data['properties']['temperature']['values'][0]['value']
+        dew_c = grid_data['properties']['dewpoint']['values'][0]['value']
+        wind_kmh = grid_data['properties']['windSpeed']['values'][0]['value']
+        humidity = grid_data['properties']['relativeHumidity']['values'][0]['value']
+        precip = grid_data['properties']['probabilityOfPrecipitation']['values'][0]['value']
+
+        # Extract some useful values (all are time-series arrays)
+        detailed = {
+            "Temperature": f"{c_to_f(temp_c)}°F" if temp_c is not None else "N/A",
+            "Dewpoint": f"{c_to_f(dew_c)}°F" if dew_c is not None else "N/A",
+            "Wind Speed": f"{kmh_to_mph(wind_kmh)} mph" if wind_kmh is not None else "N/A",
+            "Humidity": f"{humidity}%" if humidity is not None else "N/A",
+            "Chance of Rain": f"{precip}%" if precip is not None else "N/A"
+        }
+
         forecast_items = []
-        forecast_divs = soup.select('.tombstone-container')
-        
-        for div in forecast_divs:
-            period = div.find(class_='period-name')
-            desc = div.find(class_='short-desc')
-            temp = div.find(class_='temp')
-            
-            if period and desc and temp:
-                forecast_items.append({
-                    'period': period.text.strip(),
-                    'description': desc.text.strip(),
-                    'temperature': temp.text.strip()
-                })
-        
-        weather_data = {
-            'location': location,
-            'current_conditions': conditions,
+        for period in forecast_data["properties"]["periods"][:7]:
+            forecast_items.append({
+                "period": period["name"],
+                "description": period["shortForecast"],
+                "temperature": f"{period['temperature']}°{period['temperatureUnit']}"
+            })
+        location_name = location
+
+        return {
+            'location': location_name,
+            'forecast': forecast_items,
             'detailed_conditions': detailed,
-            'forecast': forecast_items[:7],  # Limit to 7 days
             'success': True
         }
-        
-        return weather_data
-    
+
     except Exception as e:
-        logger.error(f"Error fetching weather data: {str(e)}")
-        return {
-            'success': False,
-            'error': f"Could not retrieve weather information: {str(e)}"
-        }
+        logger.error(f"Error fetching weather for '{location}': {str(e)}")
+        return {'success': False, 'error': str(e)}
+
+        
+def c_to_f(celsius):
+    return round((celsius * 9/5) + 32)
+
+def kmh_to_mph(kmh):
+    return round(kmh * 0.621371)
