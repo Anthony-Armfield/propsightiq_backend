@@ -1,4 +1,4 @@
-FROM python:3-alpine
+FROM python:3-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
     libpq-dev \
+    netcat-openbsd \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -20,4 +21,7 @@ COPY requirements.txt /app/
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Copy project
-COPY . /app/
+COPY ./ /app/
+
+# Make entrypoint.sh executable
+RUN chmod +x /app/docker/entrypoint.sh

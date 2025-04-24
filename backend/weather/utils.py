@@ -4,7 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def get_weather_forecast():
+def get_weather_forecast(location: str):
     """
     Scrape weather forecast data from National Weather Service
     
