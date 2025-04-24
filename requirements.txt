@@ -1,0 +1,8 @@
+cat > requirements.txt << EOL
+Django>=5.2
+psycopg2>=2.9.10
+requests>=2.32.3
+beautifulsoup4>=4.13.4
+python-decouple>=3.8
+gunicorn>=23.0.0
+whitenoise>=6.9.0
