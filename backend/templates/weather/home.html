@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0">PropSightIQ - Real Estate Intelligence</h2>
+            </div>
+            <div class="card-body">
+                <p class="lead">Welcome to PropSightIQ, your data-driven real estate tool to help realtors view enriched home listings.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if weather.success %}
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3>Current Weather: {{ weather.location }}</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h4>Current Conditions</h4>
+                            <p class="display-4">{{ weather.current_conditions.temperature }}</p>
+                            <p class="lead">{{ weather.current_conditions.condition }}</p>
+                            
+                            <h5 class="mt-4">Details</h5>
+                            <ul class="list-group">
+                                {% for label, value in weather.detailed_conditions.items %}
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <strong>{{ label }}</strong>
+                                    <span>{{ value }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h4>Forecast</h4>
+                            <div class="row">
+                                {% for item in weather.forecast %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card h-100">
+                                        <div class="card-header text-center">
+                                            {{ item.period }}
+                                        </div>
+                                        <div class="card-body">
+                                            <p class="text-center">{{ item.temperature }}</p>
+                                            <p class="text-center small">{{ item.description }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer text-muted">
+                    <small>Data provided by the National Weather Service</small>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="alert alert-danger" role="alert">
+        {{ weather.error|default:"Unable to retrieve weather information at this time." }}
+    </div>
+{% endif %}
+{% endblock %}
