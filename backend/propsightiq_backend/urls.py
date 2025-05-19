@@ -12,4 +12,4 @@ urlpatterns = [
     path('', include('weather.urls')),
 ]
 
-path("realtor/", include("users.urls")),
+# path("realtor/", include("users.urls")),
